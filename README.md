@@ -1,16 +1,47 @@
-# React + Vite
+# AI数学 学習アプリ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+推薦アルゴリズムの数理的な仕組みをインタラクティブに学べるアプリ。
 
-Currently, two official plugins are available:
+## 構成
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+Recommend/
+├── backend/          # FastAPI（計算ロジック）
+│   ├── main.py
+│   ├── requirements.txt
+│   └── routers/
+│       ├── cosine.py
+│       ├── collaborative.py
+│       └── matrix_factorization.py
+└── frontend/         # React + Vite（UI）
+    └── src/
+        ├── api/      # バックエンド呼び出し
+        ├── components/
+        └── data/
+```
 
-## React Compiler
+## 起動方法
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+ターミナルを2つ開いて、それぞれ実行する。
 
-## Expanding the ESLint configuration
+### バックエンド（ポート 8000）
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+### フロントエンド（ポート 5173）
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+ブラウザで http://localhost:5173 を開く。
+
+## API ドキュメント
+
+バックエンド起動後、http://localhost:8000/docs で Swagger UI が確認できる。

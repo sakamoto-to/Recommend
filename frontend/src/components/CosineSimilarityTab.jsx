@@ -1,11 +1,18 @@
-import React, { useState, useMemo } from 'react';
-import { cosineSim } from '../utils/cosineSim';
+import React, { useState, useEffect } from 'react';
+import { fetchCosineSimilarity } from '../api';
 
 export default function CosineSimilarityTab() {
   const [vecA, setVecA] = useState([3, 2]);
   const [vecB, setVecB] = useState([1, 4]);
+  const [sim, setSim]   = useState(null);
 
-  const sim = useMemo(() => cosineSim(vecA, vecB), [vecA, vecB]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCosineSimilarity(vecA, vecB, controller.signal)
+      .then(data => setSim(data.similarity))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [vecA, vecB]);
 
   const getLabel = (s) => {
     if (s >= 0.8)  return { text: '非常に似ている',   color: '#22c55e' };
@@ -13,7 +20,7 @@ export default function CosineSimilarityTab() {
     if (s >= -0.5) return { text: 'あまり似ていない', color: '#eab308' };
     return           { text: '逆方向（正反対）',       color: '#ef4444' };
   };
-  const label = getLabel(sim);
+  const label = sim !== null ? getLabel(sim) : { text: '...', color: '#94a3b8' };
 
   const SIZE = 300;
   const CTR  = SIZE / 2;
@@ -84,7 +91,7 @@ export default function CosineSimilarityTab() {
               &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= ({dot}) / ({na} × {nb})
             </div>
             <div className="text-cyan-300 font-bold text-sm">
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {sim.toFixed(4)}
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {sim !== null ? sim.toFixed(4) : '...'}
             </div>
           </div>
         </div>
@@ -121,7 +128,9 @@ export default function CosineSimilarityTab() {
           </svg>
 
           <div className="text-center">
-            <div className="text-5xl font-bold text-white mb-1">{sim.toFixed(3)}</div>
+            <div className="text-5xl font-bold text-white mb-1">
+              {sim !== null ? sim.toFixed(3) : '—'}
+            </div>
             <div className="text-base font-semibold" style={{ color: label.color }}>{label.text}</div>
             <div className="text-gray-500 text-xs mt-1">コサイン類似度（-1 〜 +1）</div>
           </div>

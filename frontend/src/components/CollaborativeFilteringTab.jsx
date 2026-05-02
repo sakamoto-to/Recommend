@@ -1,12 +1,26 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
-import { cosineSim } from '../utils/cosineSim';
+import { fetchCF } from '../api';
 import { SAMPLE } from '../data/sample';
 
 export default function CollaborativeFilteringTab() {
-  const [ratings, setRatings] = useState(SAMPLE.map(r => [...r]));
-  const [target, setTarget]   = useState(0);
-  const [editing, setEditing] = useState(null);
+  const [ratings, setRatings]           = useState(SAMPLE.map(r => [...r]));
+  const [target, setTarget]             = useState(0);
+  const [editing, setEditing]           = useState(null);
+  const [similarities, setSimilarities] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCF(ratings, target)
+        .then(data => {
+          setSimilarities(data.similarities);
+          setRecommendations(data.recommendations);
+        })
+        .catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [ratings, target]);
 
   const updateCell = (u, i, raw) => {
     setRatings(prev => {
@@ -17,45 +31,6 @@ export default function CollaborativeFilteringTab() {
       return next;
     });
   };
-
-  const userCosSim = useCallback((u1, u2) => {
-    const shared = ratings[u1]
-      .map((v, i) => [v, ratings[u2][i]])
-      .filter(([a, b]) => a !== null && b !== null);
-    if (shared.length === 0) return 0;
-    return cosineSim(shared.map(([a]) => a), shared.map(([, b]) => b));
-  }, [ratings]);
-
-  const similarities = useMemo(() =>
-    [0,1,2,3,4]
-      .filter(u => u !== target)
-      .map(u => ({ user: `ユーザー${u+1}`, idx: u, sim: userCosSim(target, u) }))
-      .sort((a, b) => b.sim - a.sim),
-  [target, userCosSim]);
-
-  const recommendations = useMemo(() =>
-    ratings[target]
-      .map((v, i) => {
-        if (v !== null) return null;
-        let num = 0, den = 0;
-        let topContrib = null;
-        similarities.forEach(({ idx, sim }) => {
-          if (ratings[idx][i] !== null && sim > 0) {
-            num += sim * ratings[idx][i];
-            den += sim;
-            if (!topContrib) topContrib = { user: `ユーザー${idx+1}`, rating: ratings[idx][i] };
-          }
-        });
-        if (den === 0) return null;
-        const score = num / den;
-        const reason = topContrib
-          ? `${topContrib.user}があなたと最も類似しており、商品${i+1}に${topContrib.rating}点をつけています`
-          : '推薦データが不足しています';
-        return { item: `商品${i+1}`, score, reason };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score),
-  [ratings, target, similarities]);
 
   const cellBg = v =>
     v === null ? '#1e293b' :

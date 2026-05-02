@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ScatterChart, Scatter, ZAxis, Legend,
 } from 'recharts';
+import { fetchMF } from '../api';
 import { SAMPLE } from '../data/sample';
 
 export default function MatrixFactorizationTab() {
@@ -15,73 +16,29 @@ export default function MatrixFactorizationTab() {
   const [V,       setV]      = useState(null);
   const [running, setRunning] = useState(false);
 
-  const R  = SAMPLE;
-  const nU = 5, nI = 5;
-  const BATCH = 5;
+  const nU = SAMPLE.length;
+  const nI = SAMPLE[0].length;
 
-  const runMF = useCallback(() => {
+  const runMF = async () => {
     setRunning(true);
     setLosses([]);
     setU(null);
     setV(null);
+    try {
+      const data = await fetchMF({ ratings: SAMPLE, k, alpha, lambda, steps });
+      setLosses(data.losses);
+      setU(data.U);
+      setV(data.V);
+    } finally {
+      setRunning(false);
+    }
+  };
 
-    const u = Array.from({ length: nU }, () =>
-      Array.from({ length: k }, () => (Math.random() - 0.5) * 0.2));
-    const v = Array.from({ length: nI }, () =>
-      Array.from({ length: k }, () => (Math.random() - 0.5) * 0.2));
-
-    const allLosses = [];
-
-    const computeLoss = () => {
-      let loss = 0, cnt = 0;
-      for (let ui = 0; ui < nU; ui++) {
-        for (let ii = 0; ii < nI; ii++) {
-          if (R[ui][ii] === null) continue;
-          const pred = u[ui].reduce((s, val, f) => s + val * v[ii][f], 0);
-          loss += (R[ui][ii] - pred) ** 2;
-          cnt++;
-        }
-      }
-      return cnt > 0 ? loss / cnt : 0;
-    };
-
-    const tick = (from) => {
-      const to = Math.min(from + BATCH, steps);
-      for (let s = from; s < to; s++) {
-        for (let ui = 0; ui < nU; ui++) {
-          for (let ii = 0; ii < nI; ii++) {
-            if (R[ui][ii] === null) continue;
-            const pred = u[ui].reduce((s2, val, f) => s2 + val * v[ii][f], 0);
-            const e = R[ui][ii] - pred;
-            for (let f = 0; f < k; f++) {
-              const uf = u[ui][f], vf = v[ii][f];
-              u[ui][f] += alpha * (e * vf - lambda * uf);
-              v[ii][f] += alpha * (e * uf - lambda * vf);
-            }
-          }
-        }
-        allLosses.push({ step: s + 1, loss: computeLoss() });
-      }
-      setLosses([...allLosses]);
-      if (to < steps) {
-        setTimeout(() => tick(to), 0);
-      } else {
-        setU(u.map(r => [...r]));
-        setV(v.map(r => [...r]));
-        setRunning(false);
-      }
-    };
-
-    setTimeout(() => tick(0), 0);
-  }, [k, alpha, lambda, steps]);
-
-  const reconstructed = useMemo(() =>
-    U && V
-      ? Array.from({ length: nU }, (_, ui) =>
-          Array.from({ length: nI }, (_, ii) =>
-            U[ui].reduce((s, val, f) => s + val * V[ii][f], 0)))
-      : null,
-  [U, V]);
+  const reconstructed = U && V
+    ? Array.from({ length: nU }, (_, ui) =>
+        Array.from({ length: nI }, (_, ii) =>
+          U[ui].reduce((s, val, f) => s + val * V[ii][f], 0)))
+    : null;
 
   const getHeatColor = (val, min = 1, max = 5) => {
     const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
@@ -100,7 +57,7 @@ export default function MatrixFactorizationTab() {
           <React.Fragment key={u}>
             <div className="text-xs text-gray-500 flex items-center justify-center">U{u+1}</div>
             {Array.from({ length: nI }, (_, i) => {
-              const raw = isOrig ? R[u][i] : data?.[u]?.[i];
+              const raw = isOrig ? SAMPLE[u][i] : data?.[u]?.[i];
               const displayVal = raw === null || raw === undefined ? null :
                 isOrig ? raw : Math.max(1, Math.min(5, raw));
               return (
@@ -178,7 +135,7 @@ export default function MatrixFactorizationTab() {
           className="mt-5 w-full py-3 rounded-xl font-bold text-white text-base transition-colors"
           style={{ backgroundColor: running ? '#334155' : '#0891b2' }}
         >
-          {running ? `学習中... (${losses.length}/${steps} ステップ)` : '学習を実行する'}
+          {running ? '学習中...' : '学習を実行する'}
         </button>
       </div>
 
