@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
 import { fetchCF } from '../api';
 import { SAMPLE } from '../data/sample';
+import ExplanationPanel, { FormulaBlock, Step, SectionTitle } from './ExplanationPanel';
 
 export default function CollaborativeFilteringTab() {
   const [ratings, setRatings]           = useState(SAMPLE.map(r => [...r]));
@@ -156,6 +157,49 @@ export default function CollaborativeFilteringTab() {
           )}
         </div>
       </div>
+
+      {/* 式の解説アコーディオン */}
+      <ExplanationPanel>
+        <SectionTitle>協調フィルタリングとは</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          「あなたと似た好みを持つユーザーが高く評価したものを推薦する」手法。
+          商品の内容は一切見ず、<span className="text-cyan-300 font-semibold">ユーザーの評価パターンの類似性だけ</span>で推薦を行う。
+        </p>
+
+        <SectionTitle>3ステップの流れ</SectionTitle>
+        <div className="space-y-4">
+          <Step number="1" title="ユーザー間の類似度を計算する">
+            両者が共通して評価したアイテムだけを取り出し、コサイン類似度を求める。
+            未評価のアイテムは計算に含めない。
+            <FormulaBlock>
+              <div className="text-yellow-300">sim(u, v) = (r_u · r_v) / (|r_u| × |r_v|)</div>
+              <div className="mt-2 text-xs text-gray-400">r_u, r_v : 共通評価アイテムのみ抽出したベクトル</div>
+            </FormulaBlock>
+          </Step>
+          <Step number="2" title="未評価アイテムのスコアを加重平均で予測する">
+            類似度が高いユーザーの評価ほど重く反映される。
+            分母で正規化することでスコアが評価スケール（1〜5）に収まる。
+            <FormulaBlock>
+              <div className="text-yellow-300">ŷ_ui = Σ( sim(u,v) × r_vi ) / Σ( sim(u,v) )</div>
+              <div className="mt-2 space-y-1 text-xs">
+                <div><span className="text-blue-300">分子</span> : 類似度 × 評価値 の合計　← 似ている人の評価を重くカウント</div>
+                <div><span className="text-orange-300">分母</span> : 類似度の合計　　　　　← 重みの総和で割って正規化</div>
+              </div>
+            </FormulaBlock>
+          </Step>
+          <Step number="3" title="予測スコアが高い順に推薦する">
+            ターゲットユーザーがまだ評価していないアイテムのうち、
+            ステップ2で求めた予測スコアが高いものを上から並べる。
+          </Step>
+        </div>
+
+        <SectionTitle>なぜコサイン類似度を使うのか</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          「全部5点」をつけるユーザーと「全部3点」をつけるユーザーは、
+          評価の絶対値は異なるが<span className="text-cyan-300 font-semibold">傾向（何を好むか）は同じ</span>かもしれない。
+          コサイン類似度はベクトルの長さを正規化するため、評価水準の違いに左右されにくい。
+        </p>
+      </ExplanationPanel>
     </div>
   );
 }

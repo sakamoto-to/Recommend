@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ScatterChart, Scatter, ZAxis, Legend,
 } from 'recharts';
+import ExplanationPanel, { FormulaBlock, Step, SectionTitle } from './ExplanationPanel';
 import { fetchMF } from '../api';
 import { SAMPLE } from '../data/sample';
 
@@ -221,6 +222,83 @@ export default function MatrixFactorizationTab() {
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* 式の解説アコーディオン */}
+      <ExplanationPanel>
+        <SectionTitle>行列因子分解とは</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          評価行列 R（ユーザー × アイテム）を2つの小さな行列 U・V に分解する手法。
+          未評価のセルを <span className="text-cyan-300 font-semibold">U × Vᵀ で予測</span> できるようになる。
+        </p>
+
+        <SectionTitle>分解のイメージ</SectionTitle>
+        <FormulaBlock>
+          <div className="text-yellow-300 text-base">R  ≈  U  ×  Vᵀ</div>
+          <div className="mt-3 grid grid-cols-3 gap-4 text-xs text-center">
+            <div className="space-y-1">
+              <div className="text-white font-semibold">R（評価行列）</div>
+              <div className="text-gray-400">n_user × n_item</div>
+              <div className="text-gray-500">既知の評価 + 欠損値</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-blue-300 font-semibold">U（ユーザー行列）</div>
+              <div className="text-gray-400">n_user × k</div>
+              <div className="text-gray-500">各ユーザーの潜在的な好みベクトル</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-orange-300 font-semibold">V（アイテム行列）</div>
+              <div className="text-gray-400">n_item × k</div>
+              <div className="text-gray-500">各アイテムの潜在的な特徴ベクトル</div>
+            </div>
+          </div>
+          <div className="mt-3 text-xs text-gray-400">k = 潜在因子数（次元数）。小さいほど圧縮、大きいほど表現力が上がる</div>
+        </FormulaBlock>
+
+        <SectionTitle>損失関数</SectionTitle>
+        <FormulaBlock>
+          <div className="text-yellow-300">L = Σ(r_ui − U[u]·V[i])²  +  λ(‖U‖² + ‖V‖²)</div>
+          <div className="mt-3 space-y-2 text-xs">
+            <div>
+              <span className="text-blue-300">第1項（再構成誤差）</span>：予測値と実際の評価の差の二乗和。
+              これを小さくすることが学習の目的。
+            </div>
+            <div>
+              <span className="text-orange-300">第2項（正則化項）</span>：U・V の値が大きくなりすぎるのを抑制。
+              λ が大きいほど過学習を防ぐ。λ が小さすぎると訓練データに過適合する。
+            </div>
+          </div>
+        </FormulaBlock>
+
+        <SectionTitle>SGD（確率的勾配降下法）による更新</SectionTitle>
+        <div className="space-y-4">
+          <Step number="1" title="誤差 e を計算する">
+            評価済みのセル (u, i) に対して予測値と実測値の差を求める。
+            <FormulaBlock>
+              <div className="text-yellow-300">e = r_ui − U[u] · V[i]</div>
+            </FormulaBlock>
+          </Step>
+          <Step number="2" title="損失関数を U・V で偏微分して勾配を求める">
+            損失 L を U[u] で偏微分すると勾配の方向がわかる。
+            マイナス方向に進むことで損失が減少する。
+            <FormulaBlock>
+              <div className="space-y-1">
+                <div><span className="text-gray-400">∂L/∂U[u]</span> = <span className="text-blue-300">−2e·V[i] + 2λ·U[u]</span></div>
+                <div><span className="text-gray-400">∂L/∂V[i]</span> = <span className="text-orange-300">−2e·U[u] + 2λ·V[i]</span></div>
+              </div>
+            </FormulaBlock>
+          </Step>
+          <Step number="3" title="学習率 α で U・V をアップデートする">
+            勾配の反対方向に α だけ動かす（勾配降下）。
+            <FormulaBlock>
+              <div className="space-y-1">
+                <div className="text-yellow-300">U[u] ← U[u] + α·(e·V[i] − λ·U[u])</div>
+                <div className="text-yellow-300">V[i] ← V[i] + α·(e·U[u] − λ·V[i])</div>
+              </div>
+              <div className="mt-2 text-xs text-gray-400">α（学習率）が大きすぎると発散、小さすぎると収束が遅くなる</div>
+            </FormulaBlock>
+          </Step>
+        </div>
+      </ExplanationPanel>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchCosineSimilarity } from '../api';
+import ExplanationPanel, { FormulaBlock, Step, SectionTitle } from './ExplanationPanel';
 
 export default function CosineSimilarityTab() {
   const [vecA, setVecA] = useState([3, 2]);
@@ -136,6 +137,47 @@ export default function CosineSimilarityTab() {
           </div>
         </div>
       </div>
+
+      {/* 式の解説アコーディオン */}
+      <ExplanationPanel>
+        <SectionTitle>コサイン類似度とは</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          2つのベクトルが「どの方向を向いているか」の近さを -1〜+1 で表す指標。
+          ベクトルの大きさ（長さ）は無視して、<span className="text-cyan-300 font-semibold">向きの一致度だけ</span>を測る。
+        </p>
+
+        <SectionTitle>式の分解</SectionTitle>
+        <FormulaBlock>
+          <div className="text-yellow-300">cos θ = (A · B) / (|A| × |B|)</div>
+          <div className="mt-3 space-y-1.5 text-xs">
+            <div><span className="text-blue-300">A · B</span>　= 内積　= Σ(aᵢ × bᵢ)　← 各成分を掛けて足す</div>
+            <div><span className="text-orange-300">|A|</span>　　= ノルム = √(Σaᵢ²)　　← ベクトルの長さ</div>
+            <div><span className="text-gray-400">分母で割る</span>　→ 長さを 1 に揃えて「向きだけ」を比較</div>
+          </div>
+        </FormulaBlock>
+
+        <SectionTitle>値の意味</SectionTitle>
+        <div className="grid grid-cols-3 gap-3 text-center text-xs">
+          {[
+            { val: '+1', label: '完全に同じ方向', color: '#22c55e', desc: 'θ = 0°' },
+            { val:  '0', label: '直交（無関係）', color: '#94a3b8', desc: 'θ = 90°' },
+            { val: '−1', label: '完全に逆方向',   color: '#ef4444', desc: 'θ = 180°' },
+          ].map(({ val, label, color, desc }) => (
+            <div key={val} className="bg-slate-900 rounded-lg p-3 space-y-1">
+              <div className="text-2xl font-bold" style={{ color }}>{val}</div>
+              <div className="text-gray-300">{label}</div>
+              <div className="text-gray-500">{desc}</div>
+            </div>
+          ))}
+        </div>
+
+        <SectionTitle>なぜ「長さを揃える」のか</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          例えばユーザーAが「全部5点」、ユーザーBが「全部1点」をつけたとき、
+          内積だけで比べると大きな値になってしまう。ノルムで割ることで
+          <span className="text-cyan-300 font-semibold">評価の絶対値ではなく傾向の近さ</span>が測れる。
+        </p>
+      </ExplanationPanel>
     </div>
   );
 }
