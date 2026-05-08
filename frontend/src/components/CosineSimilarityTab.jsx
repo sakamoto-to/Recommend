@@ -2,6 +2,232 @@ import React, { useState, useEffect } from 'react';
 import { fetchCosineSimilarity } from '../api';
 import ExplanationPanel, { FormulaBlock, Step, SectionTitle } from './ExplanationPanel';
 
+// ── 投影図（スライダーと連動） ──────────────────────────────────
+function ProjectionDiagram({ vecA, vecB }) {
+  const PS   = 260;
+  const PCTR = PS / 2;
+  const PSCL = PCTR / 6.5;
+
+  const pt = (x, y) => [PCTR + x * PSCL, PCTR - y * PSCL];
+
+  const [Ax, Ay] = pt(vecA[0], vecA[1]);
+  const [Bx, By] = pt(vecB[0], vecB[1]);
+
+  // B を A 上に投影した点を計算
+  const dotAB = vecA[0] * vecB[0] + vecA[1] * vecB[1];
+  const dotAA = vecA[0] * vecA[0] + vecA[1] * vecA[1];
+  const t = dotAA > 0 ? dotAB / dotAA : 0;
+  const [Px, Py] = pt(t * vecA[0], t * vecA[1]);
+
+  // A 方向の単位ベクトル（SVG座標系）
+  const alen = Math.hypot(Ax - PCTR, Ay - PCTR);
+  const uax  = alen > 0 ? (Ax - PCTR) / alen : 1;
+  const uay  = alen > 0 ? (Ay - PCTR) / alen : 0;
+
+  // 直角マーカー（投影点に L 字を描く）
+  const s  = 9;
+  const raPoints = dotAA > 0 ? [
+    [Px + s * uax,          Py + s * uay],
+    [Px + s * uax - s * uay, Py + s * uay + s * uax],
+    [Px - s * uay,           Py + s * uax],
+  ] : null;
+
+  // 矢印ヘルパー
+  const Arrow = ({ x1, y1, x2, y2, color, dashed = false }) => {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    if (len < 4) return null;
+    const ux = dx / len, uy = dy / len;
+    const hl = 9;
+    return (
+      <>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={2}
+          strokeDasharray={dashed ? '5 3' : 'none'} />
+        <polygon
+          points={`${x2},${y2} ${x2-ux*hl-uy*4},${y2-uy*hl+ux*4} ${x2-ux*hl+uy*4},${y2-uy*hl-ux*4}`}
+          fill={color}
+        />
+      </>
+    );
+  };
+
+  const projLen = dotAA > 0 ? (dotAB / Math.sqrt(dotAA)).toFixed(2) : '0';
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <svg width={PS} height={PS} className="rounded-xl bg-slate-900 border border-slate-700">
+        {/* グリッド */}
+        {[-4,-2,2,4].map(v => (
+          <React.Fragment key={v}>
+            <line x1={pt(v,-7)[0]} y1={pt(v,-7)[1]} x2={pt(v,7)[0]} y2={pt(v,7)[1]} stroke="#1e293b" strokeWidth={1} />
+            <line x1={pt(-7,v)[0]} y1={pt(-7,v)[1]} x2={pt(7,v)[0]} y2={pt(7,v)[1]} stroke="#1e293b" strokeWidth={1} />
+          </React.Fragment>
+        ))}
+        {/* 軸 */}
+        <line x1={0} y1={PCTR} x2={PS} y2={PCTR} stroke="#334155" />
+        <line x1={PCTR} y1={0} x2={PCTR} y2={PS} stroke="#334155" />
+
+        {/* A の延長線（薄く） */}
+        {dotAA > 0 && (
+          <line
+            x1={pt(-t * vecA[0] * 1.5, -t * vecA[1] * 1.5)[0]}
+            y1={pt(-t * vecA[0] * 1.5, -t * vecA[1] * 1.5)[1]}
+            x2={pt(vecA[0] * 1.5, vecA[1] * 1.5)[0]}
+            y2={pt(vecA[0] * 1.5, vecA[1] * 1.5)[1]}
+            stroke="#1e3a5f" strokeWidth={1} strokeDasharray="4 3"
+          />
+        )}
+
+        {/* 投影ベクトル（緑） */}
+        {dotAA > 0 && Math.hypot(Px - PCTR, Py - PCTR) > 3 && (
+          <Arrow x1={PCTR} y1={PCTR} x2={Px} y2={Py} color="#22c55e" />
+        )}
+
+        {/* B からの垂線（白破線） */}
+        {dotAA > 0 && (
+          <line x1={Bx} y1={By} x2={Px} y2={Py}
+            stroke="#e2e8f0" strokeWidth={1.5} strokeDasharray="4 3" />
+        )}
+
+        {/* 直角マーカー */}
+        {raPoints && (
+          <>
+            <line x1={raPoints[0][0]} y1={raPoints[0][1]} x2={raPoints[1][0]} y2={raPoints[1][1]}
+              stroke="#94a3b8" strokeWidth={1.2} />
+            <line x1={raPoints[2][0]} y1={raPoints[2][1]} x2={raPoints[1][0]} y2={raPoints[1][1]}
+              stroke="#94a3b8" strokeWidth={1.2} />
+          </>
+        )}
+
+        {/* ベクトル A（青）・B（橙） */}
+        <Arrow x1={PCTR} y1={PCTR} x2={Ax} y2={Ay} color="#60a5fa" />
+        <Arrow x1={PCTR} y1={PCTR} x2={Bx} y2={By} color="#fb923c" />
+
+        {/* ラベル */}
+        {dotAA > 0 && <text x={Ax + 6} y={Ay - 6} fill="#60a5fa" fontSize={13} fontWeight="bold">A</text>}
+        <text x={Bx + 6} y={By - 6} fill="#fb923c" fontSize={13} fontWeight="bold">B</text>
+        {dotAA > 0 && Math.hypot(Px - PCTR, Py - PCTR) > 10 && (
+          <text x={Px + 5} y={Py + 14} fill="#22c55e" fontSize={11}>投影点</text>
+        )}
+
+        {/* 投影長ラベル */}
+        {dotAA > 0 && Math.hypot(Px - PCTR, Py - PCTR) > 10 && (
+          <text
+            x={(PCTR + Px) / 2 - uay * 14}
+            y={(PCTR + Py) / 2 + uax * 14}
+            fill="#22c55e" fontSize={10} textAnchor="middle"
+          >
+            A·B/|A|
+          </text>
+        )}
+      </svg>
+
+      <div className="grid grid-cols-3 gap-2 w-full text-xs text-center">
+        <div className="bg-slate-900 rounded-lg p-2 space-y-0.5">
+          <div className="text-blue-300 font-semibold">投影ベクトル（緑）</div>
+          <div className="text-gray-400 font-mono">A·B/|A| = {projLen}</div>
+        </div>
+        <div className="bg-slate-900 rounded-lg p-2 space-y-0.5">
+          <div className="text-gray-300 font-semibold">垂線（白破線）</div>
+          <div className="text-gray-400">B と A は直角に交わる</div>
+        </div>
+        <div className="bg-slate-900 rounded-lg p-2 space-y-0.5">
+          <div className="text-cyan-300 font-semibold">cos θ</div>
+          <div className="text-gray-400 font-mono">= (A·B/|A|) / |B|</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ユークリッド距離 vs コサイン類似度 比較図 ─────────────────
+function EuclideanComparison() {
+  const SZ  = 160;
+  const CTR = SZ / 2;
+  const SCL = 28;
+
+  const pt = (x, y) => [CTR + x * SCL, CTR - y * SCL];
+
+  const arrowSVG = (x2, y2, color) => {
+    const [ex, ey] = pt(x2, y2);
+    const dx = ex - CTR, dy = ey - CTR;
+    const len = Math.hypot(dx, dy);
+    if (len < 2) return null;
+    const ux = dx / len, uy = dy / len;
+    const hl = 8;
+    return (
+      <>
+        <line x1={CTR} y1={CTR} x2={ex} y2={ey} stroke={color} strokeWidth={2.5} />
+        <polygon
+          points={`${ex},${ey} ${ex-ux*hl-uy*4},${ey-uy*hl+ux*4} ${ex-ux*hl+uy*4},${ey-uy*hl-ux*4}`}
+          fill={color}
+        />
+      </>
+    );
+  };
+
+  const miniSVG = (vA, vB, label, cosVal, eucVal) => {
+    const [Ax, Ay] = pt(...vA);
+    const [Bx, By] = pt(...vB);
+    const euc = Math.hypot(Ax - Bx, Ay - By);
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-gray-300 text-xs font-semibold">{label}</p>
+        <svg width={SZ} height={SZ} className="rounded-lg bg-slate-900 border border-slate-700">
+          <line x1={0} y1={CTR} x2={SZ} y2={CTR} stroke="#334155" />
+          <line x1={CTR} y1={0} x2={CTR} y2={SZ} stroke="#334155" />
+          {/* ユークリッド距離の直線 */}
+          <line x1={Ax} y1={Ay} x2={Bx} y2={By} stroke="#475569" strokeWidth={1} strokeDasharray="3 2" />
+          {arrowSVG(...vA, '#60a5fa')}
+          {arrowSVG(...vB, '#fb923c')}
+          <text x={Ax + 5} y={Ay - 5} fill="#60a5fa" fontSize={12} fontWeight="bold">A</text>
+          <text x={Bx + 5} y={By - 5} fill="#fb923c" fontSize={12} fontWeight="bold">B</text>
+        </svg>
+        <div className="w-full space-y-1 text-xs">
+          <div className="flex justify-between bg-slate-900 rounded px-2 py-1">
+            <span className="text-cyan-300">コサイン類似度</span>
+            <span className="font-mono text-white">{cosVal}</span>
+          </div>
+          <div className="flex justify-between bg-slate-900 rounded px-2 py-1">
+            <span className="text-purple-300">ユークリッド距離</span>
+            <span className="font-mono text-white">{eucVal}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-gray-400 text-sm leading-relaxed">
+        コサインは<span className="text-cyan-300 font-semibold">向き</span>を、
+        ユークリッドは<span className="text-purple-300 font-semibold">位置の距離</span>を測る。
+        同じベクトルのペアでも、どちらの指標を使うかで「似ている」の意味が変わる。
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        {miniSVG([3, 1], [1, 0.33], '同じ方向・違う長さ', '1.000', '約 2.1')}
+        {miniSVG([3, 0], [0, 3],   '直角・同じ長さ',     '0.000', '約 4.2')}
+      </div>
+      <div className="bg-slate-900 rounded-lg p-4 text-xs space-y-2">
+        <p className="text-yellow-300 font-semibold">推薦システムでの実例</p>
+        <div className="grid grid-cols-2 gap-3 text-gray-400">
+          <div>
+            <p className="text-blue-300 mb-1">ユーザーA: [5, 5, 5]</p>
+            <p className="text-orange-300 mb-1">ユーザーB: [1, 1, 1]</p>
+            <p>→ コサイン = <span className="text-white">1.0（同じ好み傾向）</span></p>
+            <p>→ Euclidean = <span className="text-white">6.9（距離が大きい）</span></p>
+          </div>
+          <div className="text-gray-300 leading-relaxed">
+            Euclidean では「A は全部好き、B は全部嫌い」と判断。
+            コサインは「どちらも同じように評価している」と正しく判断できる。
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── メインコンポーネント ────────────────────────────────────────
 export default function CosineSimilarityTab() {
   const [vecA, setVecA] = useState([3, 2]);
   const [vecB, setVecB] = useState([1, 4]);
@@ -138,7 +364,6 @@ export default function CosineSimilarityTab() {
         </div>
       </div>
 
-      {/* 式の解説アコーディオン */}
       <ExplanationPanel>
         <SectionTitle>コサイン類似度とは</SectionTitle>
         <p className="text-gray-400 text-sm leading-relaxed">
@@ -170,6 +395,24 @@ export default function CosineSimilarityTab() {
             </div>
           ))}
         </div>
+
+        <SectionTitle>投影の幾何学的意味（スライダーと連動）</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          内積 A·B の正体は「<span className="text-green-400 font-semibold">B を A の方向に投影した長さ</span> × |A|」。
+          ノルムで割ると長さが消えて <span className="text-cyan-300 font-semibold">角度 θ のコサイン値だけ</span>が残る。
+          スライダーを動かすと投影がリアルタイムで変わる。
+        </p>
+        <ProjectionDiagram vecA={vecA} vecB={vecB} />
+        <FormulaBlock>
+          <div className="space-y-1.5 text-xs">
+            <div className="text-yellow-300 text-sm">A · B  =  |A| × |B| × cos θ</div>
+            <div className="text-gray-400 mt-2">↓ 両辺を |A|×|B| で割ると</div>
+            <div className="text-cyan-300 text-sm">cos θ  =  (A · B) / (|A| × |B|)  =  投影長 / |B|</div>
+          </div>
+        </FormulaBlock>
+
+        <SectionTitle>ユークリッド距離との対比</SectionTitle>
+        <EuclideanComparison />
 
         <SectionTitle>なぜ「長さを揃える」のか</SectionTitle>
         <p className="text-gray-400 text-sm leading-relaxed">
