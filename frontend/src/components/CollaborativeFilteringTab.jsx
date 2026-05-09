@@ -193,12 +193,118 @@ export default function CollaborativeFilteringTab() {
           </Step>
         </div>
 
+        <SectionTitle>分母の意味 — なぜ類似度の合計で割るのか</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed mb-3">
+          分母がないと、参照できる類似ユーザーが多いほどスコアが無制限に膨らむ。
+          類似度の合計で割ることで「重みの総和 = 1」に正規化され、スケールが安定する。
+        </p>
+        <div className="bg-slate-900 rounded-lg p-4 text-xs space-y-4">
+          <div className="text-gray-300 font-semibold">具体例：商品Xへの予測スコア</div>
+          {[
+            { user: 'ユーザーB', sim: 0.9, rating: 5, color: '#06b6d4' },
+            { user: 'ユーザーC', sim: 0.5, rating: 3, color: '#60a5fa' },
+            { user: 'ユーザーD', sim: 0.2, rating: 4, color: '#818cf8' },
+          ].map(({ user, sim, rating, color }) => {
+            const contribution = sim * rating;
+            const maxContrib = 0.9 * 5;
+            const barWidth = Math.round((contribution / maxContrib) * 100);
+            return (
+              <div key={user} className="space-y-1">
+                <div className="flex justify-between text-gray-400">
+                  <span>{user}（類似度 {sim}、評価 {rating}）</span>
+                  <span className="font-mono">sim × r = {contribution.toFixed(1)}</span>
+                </div>
+                <div className="h-4 bg-slate-700 rounded overflow-hidden">
+                  <div className="h-full rounded" style={{ width: `${barWidth}%`, backgroundColor: color }} />
+                </div>
+              </div>
+            );
+          })}
+          <div className="border-t border-slate-700 pt-3 space-y-1.5 text-gray-300">
+            <div className="flex justify-between">
+              <span className="text-blue-300">分子 Σ(sim × r) = 0.9×5 + 0.5×3 + 0.2×4</span>
+              <span className="font-mono text-blue-300">= 7.8</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-orange-300">分母 Σ(sim)　　= 0.9 + 0.5 + 0.2</span>
+              <span className="font-mono text-orange-300">= 1.6</span>
+            </div>
+            <div className="flex justify-between font-semibold border-t border-slate-600 pt-2">
+              <span>予測スコア = 7.8 ÷ 1.6</span>
+              <span className="font-mono text-cyan-300">≈ 4.88 （1〜5の範囲に収まる）</span>
+            </div>
+          </div>
+        </div>
+
         <SectionTitle>なぜコサイン類似度を使うのか</SectionTitle>
         <p className="text-gray-400 text-sm leading-relaxed">
           「全部5点」をつけるユーザーと「全部3点」をつけるユーザーは、
           評価の絶対値は異なるが<span className="text-cyan-300 font-semibold">傾向（何を好むか）は同じ</span>かもしれない。
           コサイン類似度はベクトルの長さを正規化するため、評価水準の違いに左右されにくい。
         </p>
+        <div className="bg-slate-900 rounded-lg p-4 text-xs space-y-3 mt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <div className="text-cyan-300 font-semibold">コサイン類似度</div>
+              <div className="text-gray-400 leading-relaxed">
+                ベクトルの「向き」だけを比較。評価の水準差は無視される。
+              </div>
+              <div className="bg-slate-800 rounded p-2 font-mono">
+                <div className="text-gray-300">[5, 5, 5] vs [3, 3, 3]</div>
+                <div className="text-cyan-300">cos = 1.000（完全一致）</div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-orange-300 font-semibold">ピアソン相関係数</div>
+              <div className="text-gray-400 leading-relaxed">
+                各ユーザーの平均を引いた「ズレ」で比較。好みの傾向の差を捉えやすい。
+              </div>
+              <div className="bg-slate-800 rounded p-2 font-mono">
+                <div className="text-gray-300">[5, 5, 5] vs [3, 3, 3]</div>
+                <div className="text-orange-300">pearson = 0.000（差なし）</div>
+              </div>
+            </div>
+          </div>
+          <div className="text-gray-400 leading-relaxed border-t border-slate-700 pt-2">
+            <span className="text-yellow-300 font-semibold">使い分け：</span>
+            全員が高評価をつけやすいデータ（好意的バイアス）ではピアソンが有効。
+            クリック・非クリックのような0/1評価ではコサインが向く。
+          </div>
+        </div>
+
+        <SectionTitle>コールドスタート問題</SectionTitle>
+        <p className="text-gray-400 text-sm leading-relaxed mb-3">
+          協調フィルタリングは「評価履歴」がなければ動かない。
+          新規ユーザーや新規アイテムが登場した直後は類似度が計算できず、推薦が機能しない。
+        </p>
+        <div className="bg-slate-900 rounded-lg p-4 text-xs space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <div className="text-red-400 font-semibold">新規ユーザー問題</div>
+              <div className="text-gray-400 leading-relaxed">
+                評価が0件のユーザーはどのユーザーとも類似度が計算できない。
+              </div>
+              <div className="text-gray-500 leading-relaxed">
+                → 登録時アンケートや人気ランキングで初期データを補う
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-red-400 font-semibold">新規アイテム問題</div>
+              <div className="text-gray-400 leading-relaxed">
+                誰も評価していないアイテムは分子に現れないため永遠に推薦されない。
+              </div>
+              <div className="text-gray-500 leading-relaxed">
+                → コンテンツベースフィルタリングと組み合わせて補完する
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-slate-700 pt-2 text-gray-400 leading-relaxed">
+            <span className="text-yellow-300 font-semibold">スパース性との関係：</span>
+            評価行列の多くはほとんどが未評価（疎）。
+            共通評価が少ないと類似度の信頼性が低下する。
+            次のタブで学ぶ行列因子分解はこのスパース性問題に強い手法のひとつ。
+          </div>
+        </div>
       </ExplanationPanel>
     </div>
   );
