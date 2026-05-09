@@ -5,12 +5,19 @@ import { SAMPLE } from '../data/sample';
 import ExplanationPanel, { FormulaBlock, Step, SectionTitle } from './ExplanationPanel';
 
 export default function CollaborativeFilteringTab() {
+  // 編集可能な評価行列（初期値はサンプルデータのディープコピー）
   const [ratings, setRatings]           = useState(SAMPLE.map(r => [...r]));
+  // 類似度を計算する対象ユーザーの番号（0始まり）
   const [target, setTarget]             = useState(0);
+  // インライン編集中のセル座標：{u: 行, i: 列}、編集していないときは null
   const [editing, setEditing]           = useState(null);
+  // API から返ってくるユーザー間類似度リスト（降順ソート済み）
   const [similarities, setSimilarities] = useState([]);
+  // API から返ってくる推薦アイテムリスト（スコア降順）
   const [recommendations, setRecommendations] = useState([]);
 
+  // ratings または target が変わるたびに 300ms デバウンスして CF API を呼ぶ
+  // タイマーをクリアすることで連続入力時の無駄なリクエストを防ぐ
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchCF(ratings, target)
@@ -23,6 +30,7 @@ export default function CollaborativeFilteringTab() {
     return () => clearTimeout(timer);
   }, [ratings, target]);
 
+  // セルの値を更新する：空白・null 入力は未評価（null）として扱い、1〜5 以外は無視する
   const updateCell = (u, i, raw) => {
     setRatings(prev => {
       const next = prev.map(r => [...r]);
@@ -33,6 +41,7 @@ export default function CollaborativeFilteringTab() {
     });
   };
 
+  // 評価値に応じた背景色：高評価=深緑、中=青、低=赤、未評価=暗色
   const cellBg = v =>
     v === null ? '#1e293b' :
     v >= 4    ? '#166534' :
@@ -41,9 +50,11 @@ export default function CollaborativeFilteringTab() {
 
   return (
     <div className="space-y-6">
+      {/* ── 評価行列テーブル ───────────────────────────────── */}
       <div className="bg-slate-800 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-cyan-400 font-bold text-lg">評価行列（クリックで編集）</h3>
+          {/* サンプルデータに戻すボタン */}
           <button
             onClick={() => setRatings(SAMPLE.map(r => [...r]))}
             className="px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white rounded-lg text-sm transition-colors"
@@ -64,11 +75,13 @@ export default function CollaborativeFilteringTab() {
             <tbody>
               {ratings.map((row, u) => (
                 <tr key={u}>
+                  {/* ターゲットユーザーは ▶ マークで強調表示 */}
                   <td className={`p-2 font-medium text-left text-sm ${u === target ? 'text-cyan-300' : 'text-gray-400'}`}>
                     {u === target ? '▶ ' : ''}ユーザー{u+1}
                   </td>
                   {row.map((val, i) => (
                     <td key={i} className="p-1">
+                      {/* 編集中のセルは input、それ以外はボタンで表示 */}
                       {editing?.u === u && editing?.i === i ? (
                         <input
                           autoFocus type="number" min={1} max={5}
@@ -98,10 +111,13 @@ export default function CollaborativeFilteringTab() {
         </div>
       </div>
 
+      {/* ── 類似度グラフ ＋ 推薦リスト（横並び） ─────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* ユーザー間類似度の横棒グラフ */}
         <div className="bg-slate-800 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-cyan-400 font-bold text-lg">ユーザー間類似度</h3>
+            {/* ターゲットユーザー選択ドロップダウン */}
             <select
               value={target}
               onChange={e => setTarget(+e.target.value)}
@@ -120,6 +136,7 @@ export default function CollaborativeFilteringTab() {
                 formatter={v => [v.toFixed(3), 'コサイン類似度']}
               />
               <Bar dataKey="sim" name="類似度">
+                {/* 最も類似度の高いユーザーをシアンで強調、それ以外はグレー */}
                 {similarities.map((_, i) => (
                   <Cell key={i} fill={i === 0 ? '#06b6d4' : '#334155'} />
                 ))}
@@ -134,6 +151,7 @@ export default function CollaborativeFilteringTab() {
           )}
         </div>
 
+        {/* 推薦アイテムカードリスト */}
         <div className="bg-slate-800 rounded-xl p-6">
           <h3 className="text-cyan-400 font-bold text-lg mb-4">
             レコメンド（ユーザー{target+1}）
@@ -158,7 +176,7 @@ export default function CollaborativeFilteringTab() {
         </div>
       </div>
 
-      {/* 式の解説アコーディオン */}
+      {/* ── 式の解説アコーディオン ────────────────────────────── */}
       <ExplanationPanel>
         <SectionTitle>協調フィルタリングとは</SectionTitle>
         <p className="text-gray-400 text-sm leading-relaxed">
@@ -200,6 +218,7 @@ export default function CollaborativeFilteringTab() {
         </p>
         <div className="bg-slate-900 rounded-lg p-4 text-xs space-y-4">
           <div className="text-gray-300 font-semibold">具体例：商品Xへの予測スコア</div>
+          {/* 各ユーザーの寄与（sim × rating）を棒グラフで可視化 */}
           {[
             { user: 'ユーザーB', sim: 0.9, rating: 5, color: '#06b6d4' },
             { user: 'ユーザーC', sim: 0.5, rating: 3, color: '#60a5fa' },
@@ -220,6 +239,7 @@ export default function CollaborativeFilteringTab() {
               </div>
             );
           })}
+          {/* 分子・分母・結果の内訳 */}
           <div className="border-t border-slate-700 pt-3 space-y-1.5 text-gray-300">
             <div className="flex justify-between">
               <span className="text-blue-300">分子 Σ(sim × r) = 0.9×5 + 0.5×3 + 0.2×4</span>

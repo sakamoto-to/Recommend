@@ -3,6 +3,7 @@ import CosineSimilarityTab from './components/CosineSimilarityTab';
 import CollaborativeFilteringTab from './components/CollaborativeFilteringTab';
 import MatrixFactorizationTab from './components/MatrixFactorizationTab';
 
+// 表示タブの定義：id・ラベル・コンポーネントを一元管理
 const TABS = [
   { id: 0, label: 'コサイン類似度',    Component: CosineSimilarityTab },
   { id: 1, label: '協調フィルタリング', Component: CollaborativeFilteringTab },
@@ -10,7 +11,10 @@ const TABS = [
 ];
 
 export default function App() {
+  // 現在選択中のタブ番号（0〜2）
   const [tab, setTab] = useState(0);
+
+  // タブ番号からレンダリングするコンポーネントを動的に取得
   const { Component } = TABS[tab];
 
   return (
@@ -25,6 +29,7 @@ export default function App() {
           </p>
         </header>
 
+        {/* タブナビゲーション */}
         <div className="flex gap-2 mb-8 p-1.5 rounded-xl" style={{ backgroundColor: '#1e293b' }}>
           {TABS.map(({ id, label }) => (
             <button
@@ -41,6 +46,7 @@ export default function App() {
           ))}
         </div>
 
+        {/* key={tab} でタブ切り替え時にコンポーネントをリマウントし、フェードアニメーションを適用する */}
         <div key={tab} style={{ animation: 'fadeIn 0.25s ease' }}>
           <Component />
         </div>

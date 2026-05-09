@@ -8,18 +8,22 @@ import { fetchMF } from '../api';
 import { SAMPLE } from '../data/sample';
 
 export default function MatrixFactorizationTab() {
+  // ハイパーパラメータ：潜在因子数・学習率・正則化強度・ステップ数
   const [k,       setK]      = useState(2);
   const [alpha,   setAlpha]  = useState(0.01);
   const [lambda,  setLambda] = useState(0.01);
   const [steps,   setSteps]  = useState(100);
+  // 学習結果：損失履歴・ユーザー行列 U・アイテム行列 V
   const [losses,  setLosses] = useState([]);
   const [U,       setU]      = useState(null);
   const [V,       setV]      = useState(null);
+  // API 呼び出し中フラグ（ボタンの disabled とラベル切り替えに使用）
   const [running, setRunning] = useState(false);
 
   const nU = SAMPLE.length;
   const nI = SAMPLE[0].length;
 
+  // MF バックエンドを呼び出して学習を実行する
   const runMF = async () => {
     setRunning(true);
     setLosses([]);
@@ -35,17 +39,21 @@ export default function MatrixFactorizationTab() {
     }
   };
 
+  // U・V が揃ったら評価行列を再構成する：R̂[u][i] = U[u] · V[i]（内積）
   const reconstructed = U && V
     ? Array.from({ length: nU }, (_, ui) =>
         Array.from({ length: nI }, (_, ii) =>
           U[ui].reduce((s, val, f) => s + val * V[ii][f], 0)))
     : null;
 
+  // 評価値 1〜5 を青（低）→赤（高）のグラデーション色にマッピング
   const getHeatColor = (val, min = 1, max = 5) => {
     const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
     return `rgb(${Math.round(t * 220)}, 50, ${Math.round((1 - t) * 220)})`;
   };
 
+  // 元の評価行列と再構成行列の両方に使うヒートマップ
+  // isOrig=true のときは SAMPLE をそのまま表示、false のとき reconstructed を 1〜5 にクリップして表示
   const Heatmap = ({ data, title, isOrig }) => (
     <div className="flex-1">
       <p className="text-gray-300 text-sm font-semibold text-center mb-3">{title}</p>
@@ -77,6 +85,7 @@ export default function MatrixFactorizationTab() {
     </div>
   );
 
+  // 潜在因子散布図用データ：U・V の第1・第2因子を (x, y) として抽出
   const userScatter = U && k >= 2
     ? U.map((u, i) => ({ x: u[0], y: u[1], label: `U${i+1}` }))
     : [];
@@ -84,6 +93,7 @@ export default function MatrixFactorizationTab() {
     ? V.map((v, i) => ({ x: v[0], y: v[1], label: `V${i+1}` }))
     : [];
 
+  // 散布図のカスタムドット：ユーザー=丸、アイテム=星形ポリゴン
   const CustomDot = ({ cx, cy, color, shape }) => {
     if (shape === 'star') {
       const s = 10;
@@ -96,25 +106,27 @@ export default function MatrixFactorizationTab() {
     return <circle cx={cx} cy={cy} r={7} fill={color} />;
   };
 
-  // λ効果の3パターン比較用の模式的な損失曲線データ
+  // λ効果の3パターン比較用の模式的な損失曲線を数式で生成（実際の学習データではなく概念図）
   const lambdaPatterns = (() => {
     const n = 30;
     return Array.from({ length: n }, (_, i) => {
       const t = i / (n - 1);
       return {
         step: i + 1,
-        small:  0.05 + 0.95 * Math.exp(-8 * t),              // λ小：訓練損失は激減するが汎化しない
-        good:   0.25 + 0.75 * Math.exp(-5 * t),              // λ適切：バランスよく収束
-        large:  0.65 + 0.35 * Math.exp(-2 * t),              // λ大：収束が遅く高止まり
+        small:  0.05 + 0.95 * Math.exp(-8 * t), // λ小：急降下するが過学習しやすい
+        good:   0.25 + 0.75 * Math.exp(-5 * t), // λ適切：バランスよく収束
+        large:  0.65 + 0.35 * Math.exp(-2 * t), // λ大：正則化が強すぎて高止まり
       };
     });
   })();
 
   return (
     <div className="space-y-6">
+      {/* ── パラメータスライダー ＋ 数式サマリー ────────────────── */}
       <div className="bg-slate-800 rounded-xl p-6">
         <h3 className="text-cyan-400 font-bold text-lg mb-5">パラメータ設定</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* スライダーをデータ定義で一元管理してループレンダリング */}
           {[
             { label: '潜在因子数 k', val: k,      min: 1,     max: 4,   step: 1,     set: setK,      fmt: v => v },
             { label: '学習率 α',    val: alpha,  min: 0.001, max: 0.1, step: 0.001, set: setAlpha,  fmt: v => v.toFixed(3) },
@@ -137,6 +149,7 @@ export default function MatrixFactorizationTab() {
           ))}
         </div>
 
+        {/* 現在設定中のパラメータで使う数式サマリー */}
         <div className="bg-slate-900 rounded-lg p-4 mt-5 font-mono text-xs text-gray-300 space-y-1.5 leading-relaxed">
           <div>目標：R ≈ U × Vᵀ</div>
           <div>損失：L = Σ(r_ui − u_u·v_i)² + λ(‖U‖² + ‖V‖²)</div>
@@ -144,6 +157,7 @@ export default function MatrixFactorizationTab() {
           <div className="pl-10">v_i ← v_i + α(e_ui × u_u − λ × v_i)</div>
         </div>
 
+        {/* 学習実行ボタン：実行中は disabled にして連打を防ぐ */}
         <button
           onClick={runMF}
           disabled={running}
@@ -154,6 +168,7 @@ export default function MatrixFactorizationTab() {
         </button>
       </div>
 
+      {/* ── 損失曲線グラフ（学習後に表示） ──────────────────────── */}
       {losses.length > 0 && (
         <div className="bg-slate-800 rounded-xl p-6">
           <h3 className="text-cyan-400 font-bold text-lg mb-4">損失関数の推移（MSE）</h3>
@@ -170,12 +185,14 @@ export default function MatrixFactorizationTab() {
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff' }}
                 formatter={v => [v.toFixed(5), 'MSE損失']}
               />
+              {/* isAnimationActive={false}：再レンダリングのたびにアニメーションが走るのを防ぐ */}
               <Line type="monotone" dataKey="loss" stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
 
+      {/* ── 元行列 ＋ 再構成行列のヒートマップ（学習後に表示） ──── */}
       {reconstructed && (
         <div className="bg-slate-800 rounded-xl p-6">
           <h3 className="text-cyan-400 font-bold text-lg mb-5">行列の可視化</h3>
@@ -183,6 +200,7 @@ export default function MatrixFactorizationTab() {
             <Heatmap data={null}          title="元の評価行列"    isOrig={true} />
             <Heatmap data={reconstructed} title="再構成 (U × Vᵀ)" isOrig={false} />
           </div>
+          {/* カラースケールの凡例 */}
           <div className="flex justify-center items-center gap-6 mt-4 text-xs text-gray-400">
             <span className="flex items-center gap-1.5">
               <span className="w-4 h-4 rounded inline-block" style={{ backgroundColor: getHeatColor(1) }}></span>
@@ -196,6 +214,7 @@ export default function MatrixFactorizationTab() {
         </div>
       )}
 
+      {/* ── 潜在因子の散布図（k>=2 かつ学習後に表示） ──────────── */}
       {U && V && k >= 2 && (
         <div className="bg-slate-800 rounded-xl p-6">
           <h3 className="text-cyan-400 font-bold text-lg mb-1">潜在因子の可視化（第1・第2因子）</h3>
@@ -219,6 +238,7 @@ export default function MatrixFactorizationTab() {
                   ) : null
                 }
               />
+              {/* ユーザーは丸、アイテムは星でプロット */}
               <Scatter
                 name="ユーザー (●)"
                 data={userScatter}
@@ -237,7 +257,7 @@ export default function MatrixFactorizationTab() {
         </div>
       )}
 
-      {/* 式の解説アコーディオン */}
+      {/* ── 式の解説アコーディオン ────────────────────────────── */}
       <ExplanationPanel>
         <SectionTitle>行列因子分解とは</SectionTitle>
         <p className="text-gray-400 text-sm leading-relaxed">
@@ -385,6 +405,7 @@ export default function MatrixFactorizationTab() {
           下のグラフは3種類のλによる損失曲線の模式図。
         </p>
         <div className="bg-slate-900 rounded-lg p-4">
+          {/* lambdaPatterns は数式で生成した模式的なデータ（実際の学習結果ではない） */}
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={lambdaPatterns} margin={{ top: 8, right: 16, bottom: 20, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -402,9 +423,9 @@ export default function MatrixFactorizationTab() {
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', fontSize: 12 }}
                 formatter={(v, name) => [v.toFixed(3), name]}
               />
-              <Line type="monotone" dataKey="small" name="λ 小（過学習）"  stroke="#f87171" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="small" name="λ 小（過学習）"     stroke="#f87171" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="good"  name="λ 適切（バランス）" stroke="#34d399" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="large" name="λ 大（学習不足）" stroke="#94a3b8" strokeWidth={2} dot={false} strokeDasharray="5 3" isAnimationActive={false} />
+              <Line type="monotone" dataKey="large" name="λ 大（学習不足）"   stroke="#94a3b8" strokeWidth={2} dot={false} strokeDasharray="5 3" isAnimationActive={false} />
               <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12, paddingTop: 8 }} />
             </LineChart>
           </ResponsiveContainer>
